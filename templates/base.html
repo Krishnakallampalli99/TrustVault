@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TrustVault{% endblock %} · TrustVault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if me %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">T</span><span>trust<span class="green">vault</span><small>SECURE WORKSPACE</small></span></a>
+    <div class="side-label">WORKSPACE</div>
+    <nav>
+      <a class="{{ 'active' if request.endpoint == 'dashboard' else '' }}" href="{{ url_for('dashboard') }}"><span>◫</span> Dashboard</a>
+      <a class="{{ 'active' if request.endpoint == 'documents' else '' }}" href="{{ url_for('documents') }}"><span>▤</span> My documents</a>
+      <a class="{{ 'active' if request.endpoint == 'upload' else '' }}" href="{{ url_for('upload') }}"><span>↑</span> Upload document</a>
+      {% if me.role == 'admin' %}<a class="{{ 'active' if request.endpoint == 'users' else '' }}" href="{{ url_for('users') }}"><span>♙</span> User management</a>
+      <a class="{{ 'active' if request.endpoint == 'activity' else '' }}" href="{{ url_for('activity') }}"><span>⌁</span> Activity logs</a>{% endif %}
+    </nav>
+    <div class="sidebar-bottom"><div class="secure-pill"><span class="pulse"></span> Your workspace is protected</div><div class="user-mini"><div class="avatar">{{ me.name[:1]|upper }}</div><div class="user-meta"><b>{{ me.name }}</b><small>{{ me.role|capitalize }}</small></div><a class="icon-link" href="{{ url_for('profile') }}" title="Profile">⚙</a></div>
+      <form action="{{ url_for('logout') }}" method="post"><button class="logout-btn" type="submit">↗ &nbsp; Sign out</button></form>
+    </div>
+  </aside>
+  <main class="main-area">
+    <header class="topbar"><div class="mobile-brand"><span class="brand-mark">T</span> trust<span class="green">vault</span></div><div class="crumb">Workspace <span>/</span> {% block crumb %}Overview{% endblock %}</div><div class="top-actions"><span class="status-dot"></span><span class="top-status">All systems operational</span><a class="avatar small" href="{{ url_for('profile') }}">{{ me.name[:1]|upper }}</a></div></header>
+    <section class="page-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack">{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}<button onclick="this.parentElement.remove()" aria-label="Dismiss">×</button></div>{% endfor %}</div>{% endif %}{% endwith %}
+      {% block content %}{% endblock %}
+    </section>
+    <footer class="footer"><span>© 2026 TrustVault</span><span><span class="green">●</span> Privacy-first document control</span></footer>
+  </main>
+</div>
+{% else %}
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="public-flashes">{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
+{% block public_content %}{% endblock %}
+{% endif %}
+</body></html>

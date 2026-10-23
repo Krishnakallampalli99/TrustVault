@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}{{ 'Create account' if mode == 'signup' else 'Sign in' }}{% endblock %}
+{% block public_content %}
+<div class="auth-layout"><a class="brand auth-brand" href="{{ url_for('index') }}"><span class="brand-mark">T</span><span>trust<span class="green">vault</span><small>SECURE WORKSPACE</small></span></a><a class="back-home" href="{{ url_for('index') }}">← Back to home</a>
+<div class="auth-card"><div class="auth-icon">▣</div><div class="eyebrow centered">YOUR SECURE WORKSPACE</div><h1>{{ 'Create your account' if mode == 'signup' else 'Welcome back' }}</h1><p class="auth-sub">{{ 'Start managing your documents securely.' if mode == 'signup' else 'Sign in to access your secure documents.' }}</p>
+<form method="post" class="auth-form">
+{% if mode == 'signup' %}<label>Full name<input name="name" type="text" placeholder="e.g. Alex Morgan" autocomplete="name" required maxlength="100"></label>{% endif %}
+<label>Email address<input name="email" type="email" placeholder="you@example.com" autocomplete="email" required maxlength="254"></label>
+<label>Password<input name="password" type="password" placeholder="{{ 'At least 8 characters' if mode == 'signup' else 'Enter your password' }}" autocomplete="{{ 'new-password' if mode == 'signup' else 'current-password' }}" required minlength="{{ 8 if mode == 'signup' else 1 }}"></label>
+{% if mode == 'signup' %}<label>Confirm password<input name="confirm_password" type="password" placeholder="Enter your password again" autocomplete="new-password" required minlength="8"></label><p class="form-note">By creating an account, you’ll start as a document owner. Admin access is assigned separately.</p>{% endif %}
+<button class="btn btn-primary btn-large full" type="submit">{{ 'Create secure account' if mode == 'signup' else 'Sign in securely' }} <span>↗</span></button>
+</form><div class="auth-switch">{{ 'Already have an account?' if mode == 'signup' else 'New to TrustVault?' }} <a href="{{ url_for('login' if mode == 'signup' else 'signup') }}">{{ 'Sign in' if mode == 'signup' else 'Create an account' }}</a></div><div class="auth-safe"><span class="green">▣</span> Your data is private and access-controlled</div></div><div class="auth-foot">© 2026 TrustVault · Secure document control</div></div>
+{% endblock %}

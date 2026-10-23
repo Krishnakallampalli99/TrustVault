@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+venv/
+*.pyc
+trustvault.db
+private_uploads/
+trustvault_backup/
+.env
+.env.*
+!.env.example
