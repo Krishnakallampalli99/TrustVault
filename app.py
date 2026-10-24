@@ -76,12 +76,23 @@ def log_event(actor_id, action, details):
         con.execute("INSERT INTO audit_logs(actor_id, action, details, created_at) VALUES(?,?,?,?)",
                     (actor_id, action, details[:500], now()))
 
+
 def current_user():
     uid = session.get("user_id")
     if not uid:
         return None
+
     with db() as con:
-        return con.execute("SELECT id,name,email,role FROM users WHERE id=?", (uid,)).fetchone()
+        user = con.execute(
+            "SELECT id, name, email, role FROM users WHERE id = ?",
+            (uid,),
+        ).fetchone()
+
+    if user is None:
+        session.clear()
+        return None
+
+    return user
 
 def login_required(fn):
     @wraps(fn)
@@ -189,6 +200,9 @@ def logout():
 @login_required
 def dashboard():
     user = current_user()
+    if user is None:
+        session.clear()
+        return redirect(url_for("login"))
     with db() as con:
         if user["role"] == "admin":
             doc_count = con.execute("SELECT COUNT(*) n FROM documents").fetchone()["n"]
