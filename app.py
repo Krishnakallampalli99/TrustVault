@@ -14,14 +14,18 @@ UPLOAD_DIR = BASE_DIR / "private_uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("TRUSTVAULT_SECRET_KEY") or secrets.token_hex(32)
+app.config["SECRET_KEY"] = os.environ.get("TRUSTVAULT_SECRET_KEY")
+
+if not app.config["SECRET_KEY"]:
+    app.config["SECRET_KEY"] = secrets.token_hex(32)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB upload limit
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
 DB_PATH = BASE_DIR / "trustvault.db"
 ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "txt", "png", "jpg", "jpeg", "xlsx", "csv", "ppt", "pptx"}
 
+
 def db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
@@ -233,7 +237,7 @@ def documents():
     return render_template("documents.html", docs=docs, categories=categories, q=q, category=category)
 
 @app.route("/upload", methods=["GET", "POST"])
-@login_required
+@roles_required("admin", "owner")
 def upload():
     if request.method == "POST":
         file = request.files.get("file")
@@ -292,23 +296,40 @@ def delete_document(doc_id):
     flash("Document deleted.", "success")
     return redirect(url_for("documents"))
 
+
 @app.route("/documents/<int:doc_id>/share", methods=["GET", "POST"])
 @login_required
 def share_document(doc_id):
     user = current_user()
     doc = get_document(doc_id)
+
     if not doc:
         abort(404)
+
     if user["role"] != "admin" and doc["owner_id"] != user["id"]:
-        log_event(user["id"], "ACCESS_DENIED", f"Denied share management for document #{doc_id}")
+        log_event(
+            user["id"],
+            "ACCESS_DENIED",
+            f"Denied share management for document #{doc_id}",
+        )
         abort(403)
+
     if request.method == "POST":
         action = request.form.get("action")
         email = request.form.get("email", "").strip().lower()
+
+        audit_action = None
+        audit_details = None
+
         with db() as con:
-            target = con.execute("SELECT id,role FROM users WHERE email=?", (email,)).fetchone()
+            target = con.execute(
+                "SELECT id, role FROM users WHERE email = ?",
+                (email,),
+            ).fetchone()
+
             if action == "grant":
                 permission = request.form.get("permission", "read")
+
                 if not target:
                     flash("No registered user has that email.", "error")
                 elif target["id"] == doc["owner_id"]:
@@ -316,20 +337,58 @@ def share_document(doc_id):
                 elif permission not in ("read", "edit"):
                     flash("Invalid permission selected.", "error")
                 else:
-                    con.execute("""INSERT INTO grants(document_id,user_id,permission,created_at) VALUES(?,?,?,?)
-                                   ON CONFLICT(document_id,user_id) DO UPDATE SET permission=excluded.permission, created_at=excluded.created_at""",
-                                (doc_id, target["id"], permission, now()))
-                    log_event(user["id"], "ACCESS_GRANTED", f"{permission} access to document #{doc_id} granted to {email}")
+                    con.execute(
+                        """INSERT INTO grants
+                           (document_id, user_id, permission, created_at)
+                           VALUES (?, ?, ?, ?)
+                           ON CONFLICT(document_id, user_id)
+                           DO UPDATE SET
+                               permission = excluded.permission,
+                               created_at = excluded.created_at""",
+                        (doc_id, target["id"], permission, now()),
+                    )
+
+                    audit_action = "ACCESS_GRANTED"
+                    audit_details = (
+                        f"{permission} access to document #{doc_id} "
+                        f"granted to {email}"
+                    )
                     flash("Access granted.", "success")
+
             elif action == "revoke":
                 if target:
-                    con.execute("DELETE FROM grants WHERE document_id=? AND user_id=?", (doc_id, target["id"]))
-                log_event(user["id"], "ACCESS_REVOKED", f"Access to document #{doc_id} revoked for {email}")
-                flash("Access revoked if a matching grant existed.", "success")
+                    con.execute(
+                        "DELETE FROM grants WHERE document_id = ? AND user_id = ?",
+                        (doc_id, target["id"]),
+                    )
+
+                audit_action = "ACCESS_REVOKED"
+                audit_details = (
+                    f"Access to document #{doc_id} revoked for {email}"
+                )
+                flash(
+                    "Access revoked if a matching grant existed.",
+                    "success",
+                )
+            else:
+                flash("Invalid sharing action.", "error")
+
+        # The database transaction has finished before audit logging begins.
+        if audit_action:
+            log_event(user["id"], audit_action, audit_details)
+
         return redirect(url_for("share_document", doc_id=doc_id))
+
     with db() as con:
-        grants = con.execute("""SELECT g.permission,g.created_at,u.name,u.email FROM grants g JOIN users u ON u.id=g.user_id
-                                WHERE g.document_id=? ORDER BY u.name""", (doc_id,)).fetchall()
+        grants = con.execute(
+            """SELECT g.permission, g.created_at, u.name, u.email
+               FROM grants g
+               JOIN users u ON u.id = g.user_id
+               WHERE g.document_id = ?
+               ORDER BY u.name""",
+            (doc_id,),
+        ).fetchall()
+
     return render_template("share.html", doc=doc, grants=grants)
 
 @app.route("/activity")
